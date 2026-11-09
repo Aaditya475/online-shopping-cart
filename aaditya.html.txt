@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Shopping Cart - Recursive Bundle Discount</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 24px 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .container { grid-template-columns: 360px 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    h1, h2, h3 { font-weight: 700; margin-bottom: 8px; }
+    h1 { font-size: 1.25rem; grid-column: 1 / -1; }
+    h2 { font-size: 1rem; color: #a5b4fc; }
+
+    /* Form controls */
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    input, select {
+      width: 100%;
+      padding: 8px 12px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--primary); }
+
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; padding: 4px 8px; font-size: 0.75rem; width: auto; }
+
+    /* Cart Items Table */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
+
+    /* Totals & JSON Object Viewer */
+    .summary-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 6px; }
+    .total-row { font-size: 1.1rem; font-weight: bold; color: #38bdf8; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+    
+    pre {
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #86efac;
+      overflow-x: auto;
+      max-height: 250px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>🛒 Online Shopping Cart with Recursive Bundle Discount</h1>
+
+    <!-- 1. HTML FORM: Add Items -->
+    <div class="card">
+      <h2>Add Item to Cart</h2>
+      <form id="itemForm">
+        <div class="form-group">
+          <label for="itemName">Product Name</label>
+          <input type="text" id="itemName" placeholder="e.g. Mechanical Keyboard" required>
+        </div>
+        <div class="form-group">
+          <label for="itemPrice">Unit Price ($)</label>
+          <input type="number" id="itemPrice" step="0.01" min="0.01" placeholder="50.00" required>
+        </div>
+        <div class="form-group">
+          <label for="itemQty">Quantity</label>
+          <input type="number" id="itemQty" min="1" value="1" required>
+        </div>
+        <div class="form-group">
+          <label for="itemBundle">Is this a Bundle Item?</label>
+          <select id="itemBundle">
+            <option value="false">Standard Item</option>
+            <option value="true">Bundle Item (10% Tier Discount)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">+ Add to Cart</button>
+      </form>
+
+      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <span class="badge">Bundle Offer Rule</span>
+        <p style="font-size: 0.75rem; color: var(--muted); margin-top: 4px;">
+          <strong>Triple-Play Deal:</strong> Every 3 eligible items in the cart receive a <strong>$15.00 discount</strong> calculated <em>recursively</em>.
+        </p>
+      </div>
+    </div>
+
+    <!-- 2. CART VIEW & BILL COMPUTATION -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Shopping Cart Items</h2>
+        <button id="btnClearCart" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.75rem;">Clear All</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Price</th>
+            <th>Qty</th>
+            <th>Subtotal</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="cartTableBody">
+          <!-- Injected via JavaScript -->
+        </tbody>
+      </table>
+
+      <!-- Summary calculations -->
+      <div style="margin-top: 20px;">
+        <div class="summary-row"><span>Raw Subtotal:</span><span id="txtRaw">$0.00</span></div>
+        <div class="summary-row" style="color: #4ade80;"><span>Recursive Bundle Discount:</span><span id="txtDiscount">-$0.00</span></div>
+        <div class="summary-row"><span>Tax (8%):</span><span id="txtTax">$0.00</span></div>
+        <div class="summary-row total-row"><span>Final Total:</span><span id="txtTotal">$0.00</span></div>
+      </div>
+
+      <button id="btnCheckout" class="btn btn-success" style="margin-top: 14px;">
+        🧾 Compute Total & Return Final Bill as Object
+      </button>
+
+      <!-- Returned Object Output -->
+      <div id="outputContainer" style="display: none; margin-top: 16px;">
+        <h2>Returned Final Bill Object:</h2>
+        <pre id="jsonBillOutput"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * CLASS 1: Item
+     * Represents a product or a composite bundle.
+     * =========================================================================
+     */
+    class Item {
+      constructor(id, name, price, isBundle = false, bundleDiscountPercent = 10) {
+        this.id = id;
+        this.name = name;
+        this.price = Number(price);
+        this.isBundle = Boolean(isBundle);
+        this.bundleDiscountPercent = Number(bundleDiscountPercent);
+      }
+    }
+
+    /**
+     * =========================================================================
+     * CLASS 2: Cart
+     * Manages cart items, computes total with recursive discounts,
+     * and returns the final bill as an object.
+     * =========================================================================
+     */
+    class Cart {
+      constructor(taxRate = 0.08) {
+        this.items = []; // Array of { item: Item, quantity: number }
+        this.taxRate = taxRate;
+        this.bundleSize = 3;       // 3 items per bundle
+        this.discountPerBundle = 15.0; // $15 off per bundle
+      }
+
+      // Add item to cart
+      addItem(item, quantity = 1) {
+        const qty = parseInt(quantity, 10) || 1;
+        const existing = this.items.find(entry => entry.item.id === item.id);
+        if (existing) {
+          existing.quantity += qty;
+        } else {
+          this.items.push({ item, quantity: qty });
+        }
+      }
+
+      // Remove item by ID
+      removeItem(itemId, quantity = 1) {
+        const index = this.items.findIndex(entry => entry.item.id === itemId);
+        if (index !== -1) {
+          this.items[index].quantity -= quantity;
+          if (this.items[index].quantity <= 0) {
+            this.items.splice(index, 1);
+          }
+        }
+      }
+
+      clear() {
+        this.items = [];
+      }
+
+      /**
+       * RECURSIVE FUNCTION: Compute bundle discounts
+       * Recursively processes groups of 3 items from an array:
+       * - Base Case: array has fewer items than bundleSize (< 3). Return 0.
+       * - Recursive Case: discountPerBundle + recurse on the remaining items.
+       */
+      computeRecursiveBundleDiscount(itemsList) {
+        // Base Case
+        if (!itemsList || itemsList.length < this.bundleSize) {
+          return 0;
+        }
+        // Recursive Step
+        const remainingItems = itemsList.slice(this.bundleSize);
+        return this.discountPerBundle + this.computeRecursiveBundleDiscount(remainingItems);
+      }
+
+      // Compute subtotal, recursive discounts, taxes, and final total
+      computeTotal() {
+        let rawSubtotal = 0;
+        let itemBundleDiscount = 0;
+        const expandedItems = [];
+
+        for (const entry of this.items) {
+          const lineCost = entry.item.price * entry.quantity;
+          rawSubtotal += lineCost;
+
+          // If item is marked as a bundle item, apply its specific percentage discount
+          if (entry.item.isBundle) {
+            itemBundleDiscount += lineCost * (entry.item.bundleDiscountPercent / 100);
+          } else {
+            // Expand quantity into individual items for the recursive 3-pack offer
+            for (let i = 0; i < entry.quantity; i++) {
+              expandedItems.push(entry.item);
+            }
+          }
+        }
+
+        // Call recursion to compute bundle pack discounts
+        const packDiscount = this.computeRecursiveBundleDiscount(expandedItems);
+        const totalDiscount = Number((itemBundleDiscount + packDiscount).toFixed(2));
+        const discountedSubtotal = Math.max(0, rawSubtotal - totalDiscount);
+        const tax = Number((discountedSubtotal * this.taxRate).toFixed(2));
+        const finalTotal = Number((discountedSubtotal + tax).toFixed(2));
+
+        return {
+          rawSubtotal: Number(rawSubtotal.toFixed(2)),
+          totalDiscount,
+          discountedSubtotal: Number(discountedSubtotal.toFixed(2)),
+          tax,
+          finalTotal
+        };
+      }
+
+      /**
+       * Return the final bill as a structured JavaScript object
+       */
+      generateBill(customerName = "Guest Shopper") {
+        const totals = this.computeTotal();
+
+        // The final bill object
+        const billObject = {
+          invoiceId: "INV-" + Math.floor(100000 + Math.random() * 900000),
+          date: new Date().toISOString(),
+          customer: customerName,
+          purchasedItems: this.items.map(entry => ({
+            id: entry.item.id,
+            name: entry.item.name,
+            unitPrice: entry.item.price,
+            quantity: entry.quantity,
+            isBundle: entry.item.isBundle,
+            lineTotal: Number((entry.item.price * entry.quantity).toFixed(2))
+          })),
+          summary: {
+            rawSubtotal: totals.rawSubtotal,
+            discountsApplied: totals.totalDiscount,
+            discountedSubtotal: totals.discountedSubtotal,
+            taxAmount: totals.tax,
+            netPayableTotal: totals.finalTotal
+          },
+          status: "PAID"
+        };
+
+        return billObject;
+      }
+    }
+
+    /**
+     * =========================================================================
+     * UI LOGIC & EVENT HANDLING
+     * =========================================================================
+     */
+    const cart = new Cart(0.08);
+
+    const itemForm = document.getElementById('itemForm');
+    const cartTableBody = document.getElementById('cartTableBody');
+    const txtRaw = document.getElementById('txtRaw');
+    const txtDiscount = document.getElementById('txtDiscount');
+    const txtTax = document.getElementById('txtTax');
+    const txtTotal = document.getElementById('txtTotal');
+    const btnCheckout = document.getElementById('btnCheckout');
+    const outputContainer = document.getElementById('outputContainer');
+    const jsonBillOutput = document.getElementById('jsonBillOutput');
+    const btnClearCart = document.getElementById('btnClearCart');
+
+    // Update the visual cart table and summary
+    function renderCart() {
+      cartTableBody.innerHTML = '';
+
+      if (cart.items.length === 0) {
+        cartTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--muted);">Cart is empty</td></tr>';
+      } else {
+        cart.items.forEach(entry => {
+          const row = document.createElement('tr');
+          const lineTotal = (entry.item.price * entry.quantity).toFixed(2);
+          const bundleTag = entry.item.isBundle ? ' <span class="badge">Bundle</span>' : '';
+
+          row.innerHTML = `
+            <td>${entry.item.name}${bundleTag}</td>
+            <td>$${entry.item.price.toFixed(2)}</td>
+            <td>${entry.quantity}</td>
+            <td>$${lineTotal}</td>
+            <td><button class="btn btn-danger" onclick="removeItem('${entry.item.id}')">Remove</button></td>
+          `;
+          cartTableBody.appendChild(row);
+        });
+      }
+
+      const totals = cart.computeTotal();
+      txtRaw.textContent = `$${totals.rawSubtotal.toFixed(2)}`;
+      txtDiscount.textContent = `-$${totals.totalDiscount.toFixed(2)}`;
+      txtTax.textContent = `$${totals.tax.toFixed(2)}`;
+      txtTotal.textContent = `$${totals.finalTotal.toFixed(2)}`;
+    }
+
+    // Global helper for remove button
+    window.removeItem = function(id) {
+      cart.removeItem(id, 1);
+      renderCart();
+    };
+
+    // Handle form submit (Add Item)
+    itemForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('itemName').value.trim();
+      const price = parseFloat(document.getElementById('itemPrice').value);
+      const qty = parseInt(document.getElementById('itemQty').value, 10);
+      const isBundle = document.getElementById('itemBundle').value === 'true';
+
+      const id = 'ITEM_' + Date.now();
+      const newItem = new Item(id, name, price, isBundle);
+
+      cart.addItem(newItem, qty);
+      renderCart();
+
+      // Reset input fields
+      document.getElementById('itemName').value = '';
+      document.getElementById('itemPrice').value = '';
+      document.getElementById('itemQty').value = '1';
+    });
+
+    // Clear cart
+    btnClearCart.addEventListener('click', () => {
+      cart.clear();
+      renderCart();
+      outputContainer.style.display = 'none';
+    });
+
+    // Checkout: Generate and display the Final Bill Object
+    btnCheckout.addEventListener('click', () => {
+      if (cart.items.length === 0) {
+        alert('Cart is empty. Please add items first.');
+        return;
+      }
+
+      // Generate the bill as an object
+      const finalBillObject = cart.generateBill("Alice Cooper");
+
+      // Log the actual object in the browser console
+      console.log("FINAL BILL OBJECT:", finalBillObject);
+
+      // Display the JSON formatted object on the page
+      jsonBillOutput.textContent = JSON.stringify(finalBillObject, null, 2);
+      outputContainer.style.display = 'block';
+    });
+
+    // Add initial demo items so the cart has content right away
+    cart.addItem(new Item('1', 'USB-C Cable', 15.00), 2);
+    cart.addItem(new Item('2', 'Wireless Mouse', 25.00), 1); // 2 + 1 = 3 items (triggers $15 recursive bundle discount)
+    renderCart();
+  </script>
+</body>
+</html>
